@@ -1,0 +1,16 @@
+--find-links https://download.pytorch.org/whl/torch_stable.html
+torch
+--find-links https://download.pytorch.org/whl/torch_stable.html
+torchvision
+
+einops==0.8.0
+flash-attn==0.2.4
+easyocr==1.7.2
+opencv-python
+pillow==11.0.0
+
+matplotlib
+numpy
+transformers==4.46.2
+scikit-learn==1.5.2
+tqdm
