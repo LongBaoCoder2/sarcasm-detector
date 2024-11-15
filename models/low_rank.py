@@ -6,29 +6,34 @@ import torch.nn.functional as F
 from torch.nn import Parameter
 
 
+class SqueezeModule(nn.Module):
+    def __init__(self, fusion_dim: int):
+        self.norm = nn.LayerNorm(fusion_dim)
+
+        self.squeeze = nn.Sequential(
+            nn.LayerNorm(self.fusion_dim),
+            nn.Linear(fusion_dim, fusion_dim // 4, bias=False),
+            nn.SiLU(),
+            nn.Linear(fusion_dim // 4, fusion_dim, bias=True),
+        )
+
+    def forward(self, tensor_input):
+        tensor_input = self.norm(tensor_input)
+        squeezed_input = self.squeeze(tensor_input)
+        squeezed_input = 1 + F.tanh(squeezed_input)
+        tensor_input = tensor_input * squeezed_input
+        return tensor_input
+
+
 class LowRankFusion(nn.Module):
     def __init__(self, fusion_dim, rank, ff_dim=1024, lowrank_dropout=0.4):
         super(LowRankFusion, self).__init__()
         self.rank = rank
         self.fusion_dim = fusion_dim
         self.ff_dim = ff_dim
-        # Low-rank fusion factors
-        self.image_norm = nn.LayerNorm(fusion_dim)
-        self.text_norm = nn.LayerNorm(fusion_dim)
 
-        self.squeeze_first = nn.Sequential(
-            nn.LayerNorm(self.fusion_dim),
-            nn.Linear(fusion_dim, fusion_dim // 4),
-            nn.SiLU(),
-            nn.Linear(fusion_dim // 4, fusion_dim),
-        )
-
-        self.squeeze_second = nn.Sequential(
-            nn.LayerNorm(self.fusion_dim),
-            nn.Linear(fusion_dim, fusion_dim // 4),
-            nn.SiLU(),
-            nn.Linear(fusion_dim // 4, fusion_dim),
-        )
+        self.image_squeeze = SqueezeModule(fusion_dim)
+        self.text_squeeze = SqueezeModule(fusion_dim)
 
         self.text_factor = Parameter(
             torch.Tensor(self.rank, self.fusion_dim + 1, self.fusion_dim)
@@ -58,15 +63,8 @@ class LowRankFusion(nn.Module):
         batch_size = text_embedding.size(0)
         DTYPE = text_embedding.dtype
 
-        image_embedding = self.image_norm(image_embedding)
-        ffted_image_embedding = self.squeeze_first(image_embedding)
-        ffted_image_embedding = 1 + F.tanh(ffted_image_embedding)
-        image_embedding = image_embedding * ffted_image_embedding
-
-        text_embedding = self.text_norm(text_embedding)
-        ffted_text_embedding = self.squeeze_second(text_embedding)
-        ffted_text_embedding = 1 + F.tanh(ffted_text_embedding)
-        text_embedding = text_embedding * ffted_text_embedding
+        image_embedding = self.image_squeeze(image_embedding)
+        text_embedding = self.text_squeeze(text_embedding)
 
         # Add bias term to embeddings for low-rank fusion
         text_h = torch.cat(
@@ -95,8 +93,6 @@ class LowRankFusion(nn.Module):
             + self.fusion_bias
         )
         fused_embedding = self.dropout(fused_embedding)
-
-        # Apply gating network to fused embedding to control information flow
         gate_values = self.gate_network(fused_embedding)
 
         return gate_values
