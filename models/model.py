@@ -95,8 +95,7 @@ class SarcasmModel(nn.Module):
             ]
         )
 
-        # Transformer encoders for the two paths
-        self.text_transformer = nn.Sequential(
+        self.text_proj_last = nn.Sequential(
             nn.LayerNorm(fusion_dim),
             nn.Linear(fusion_dim, attention_dim, bias=False),
             nn.GELU(),
@@ -105,7 +104,7 @@ class SarcasmModel(nn.Module):
             nn.Dropout(text_dropout),
         )
 
-        self.image_text_transformer = nn.Sequential(
+        self.image_text_proj_last = nn.Sequential(
             nn.LayerNorm(fusion_dim),
             nn.Linear(fusion_dim, attention_dim, bias=False),
             nn.GELU(),
@@ -114,8 +113,7 @@ class SarcasmModel(nn.Module):
             nn.Dropout(image_dropout),
         )
 
-        # Gating transformer for pooling
-        self.gating_transformer = GatingModule(fusion_dim)
+        self.gating = GatingModule(fusion_dim)
         self.gating_dropout = nn.Dropout(dropout)
 
         # Classifier
@@ -192,10 +190,10 @@ class SarcasmModel(nn.Module):
 
         # Two path get lor, apply residual connection to both paths
         fused_out = (
-            self.image_text_transformer(fused_embedding_res) + fused_embedding_res
+            self.image_text_proj_last(fused_embedding_res) + fused_embedding_res
         )  # Residual connection
         text_caption_out = (
-            self.text_transformer(text_embedding) + text_embedding
+            self.text_proj_last(text_embedding) + text_embedding
         )  # Residual connection
 
         # Cross-attention between text and fused embeddings
@@ -205,8 +203,7 @@ class SarcasmModel(nn.Module):
         cross_attn_out_res = cross_attn_out + (fused_out + text_caption_out)
         #         cross_attn_out_res = cross_attn_out
 
-        # Gating transformer for final fusion
-        pooled_output = self.gating_transformer(cross_attn_out_res)
+        pooled_output = self.gating(cross_attn_out_res)
         pooled_output = self.gating_dropout(pooled_output)
 
         # Classification

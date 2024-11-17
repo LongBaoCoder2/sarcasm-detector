@@ -1,6 +1,6 @@
 # sarcasm-detector
 
-This project implements a multimodal__ sarcasm__ detection model that combines image and text features to classify different types of sarcasm. The model is designed to effectively fuse features from multiple modalities, handle imbalanced datasets, and improve generalization using auxiliary tasks and specialized loss functions.
+This project implements a __multimodal sarcasm detection__ model that combines image and text features to classify different types of sarcasm. The model is designed to effectively fuse features from multiple modalities, handle imbalanced datasets, and improve generalization using auxiliary tasks and specialized loss functions.
 
 ## Features of the Architecture
 
